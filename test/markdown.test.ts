@@ -16,6 +16,12 @@ describe('markdown', () => {
             "articles/cognitive-services/does-not-exist-2.md"
         ]
 
+        const globalOptions = {
+            surroundingDelimiter: "---\r\n", delimiter: ",",
+            endOfItemDelimiter: "\r\n", overwriteFile: true,
+            newFileNamePostPend: ""
+        };
+
         const pathToRootOfRepo: String = "C:\\Users\\diberry\\repos\\docs\\azure-docs-pr"
 
         // TBD - fill these in
@@ -28,18 +34,8 @@ describe('markdown', () => {
                     type: "append",
                     field: "ms.custom",
                     append: "devx-track-javascript",
-                    delimiter: ",",
-                    endOfItemDelimiter: "\n",
-                    surroundingDelimiter: "---\n",
-                    overwriteFile: true,
-                    newFileNamePostPend: ""
                 }
-            ],
-            delimiter: ",",
-            endOfItemDelimiter: "\n",
-            surroundingDelimiter: "---\n",
-            overwriteFile: true, newFileNamePostPend
-                : ""
+            ]
         }
 
         const trueCases = [
@@ -54,7 +50,7 @@ describe('markdown', () => {
             test.each(trueCases)(
                 'should return true for inputs: %s',
                 async (pathToRootOfRepo, listOfFiles, options, listOfStatus) => {
-                    const statusList = await alterListOfMarkdownFiles(pathToRootOfRepo, listOfFiles, options)
+                    const statusList = await alterListOfMarkdownFiles(pathToRootOfRepo, listOfFiles, globalOptions, options)
                     expect(statusList).not.toBe(undefined)
                 })
         })
@@ -63,7 +59,7 @@ describe('markdown', () => {
             test.each(falseCases)(
                 'should return false for inputs: %s',
                 async (pathToRootOfRepo, listOfFiles, options, listOfStatus) => {
-                    const statusList = await alterListOfMarkdownFiles(pathToRootOfRepo, listOfFiles, options)
+                    const statusList = await alterListOfMarkdownFiles(pathToRootOfRepo, listOfFiles, globalOptions, options)
                     expect(statusList).not.toBe(undefined)
                 })
         })
@@ -79,16 +75,38 @@ describe('markdown', () => {
 
         const trueCases = [
             [
-                "C:\\Users\\diberry\\repos\\dina\\markdown-tools\\data\\test_copy.md", null,
+                "C:\\Users\\diberry\\repos\\dina\\markdown-tools\\data\\test_copy.md", 
+                {
+                    surroundingDelimiter: "---\r\n", 
+                    interValuedelimiter: ",", 
+                    propertyDelimiter: ":",
+                    endOfItemDelimiter: "\r\n", 
+                    overwriteFile: false,
+                    newFileNamePostPend: ".new.md"
+                },
+                [{ type: "append", field: "ms.author", append: "bingo" }],
                 [
                     { property: `title`, value: `Use web app - Personalizer` },
                     { property: `description`, value: `Customize a C# .NET web app with a Personalizer loop to provide the correct content to a user based on actions (with features) and context features.` },
                     { property: 'ms.topic', value: `tutorial` },
                     { property: 'ms.date', value: `06/10/2020` },
-                    { property: 'ms.author', value: `diberry` }
+                    { property: 'ms.author', value: `diberry, bingo` }
                 ],
+                {status: 'success',
+                file:
+                 'C:\\Users\\diberry\\repos\\dina\\markdown-tools\\data\\test_copy.md.new.md'}
+            ],[
 
-                "C:\\Users\\diberry\\repos\\dina\\markdown-tools\\data\\test_copy2.md", [{ type: "append", field: "ms.topic", append: "helloWorld" }],
+                "C:\\Users\\diberry\\repos\\dina\\markdown-tools\\data\\test_copy2.md",
+                {
+                    surroundingDelimiter: "---\r\n", 
+                    interValuedelimiter: ",", 
+                    propertyDelimiter: ":",
+                    endOfItemDelimiter: "\r\n", 
+                    overwriteFile: true,
+                    newFileNamePostPend: ""
+                },
+                [{ type: "append", field: "ms.topic", append: "helloWorld" }],
                 [
                     { property: `title`, value: `Use web app - Personalizer` },
                     { property: `description`, value: `Customize a C# .NET web app with a Personalizer loop to provide the correct content to a user based on actions (with features) and context features.` },
@@ -96,16 +114,19 @@ describe('markdown', () => {
                     { property: 'ms.date', value: `06/10/2020` },
                     { property: 'ms.author', value: `diberry` }
                 ],
+                {status: 'success',
+                file:
+                 'C:\\Users\\diberry\\repos\\dina\\markdown-tools\\data\\test_copy.md.new.md'}
             ]
         ]
 
         describe('true cases', () => {
             test.each(trueCases)(
                 'should return true for inputs',
-                async (param1: any, options: any, result) => {
-                    const fullPath = Path.join(__dirname, param1)
-                    const testCaseResult = await alterFile(fullPath, options)
-                    expect(JSON.stringify(testCaseResult)).toEqual(JSON.stringify(result))
+                async (fullPath: any, globalOptions: any, modifications: any, result) => {
+                    const testCaseResult = await alterFile(fullPath, globalOptions, modifications)
+                    console.log(testCaseResult)
+                    ///expect(JSON.stringify(testCaseResult)).toEqual(JSON.stringify(result))
                 })
         })
 
@@ -113,7 +134,11 @@ describe('markdown', () => {
 
 
     describe('alterMetadata', () => {
-
+       
+        const globalOptions = {surroundingDelimiter:"---\n", interValuedelimiter: ",",
+        endOfItemDelimiter: "\n",overwriteFile: true,
+        newFileNamePostPend: ""}
+        
         const case1Data = [
             { property: `title`, value: `1Use web app - Personalizer` },
             { property: `description`, value: `1Customize a C# .NET web app with a Personalizer loop to provide the correct content to a user based on actions (with features) and context features.` },
@@ -122,7 +147,7 @@ describe('markdown', () => {
             { property: 'ms.author', value: `1diberry` }
         ]
 
-        const case1Options = [{ type: "append", field: "ms.topic", append: "helloWorld", delimiter: "," }]
+        const case1Options = [{ type: "append", field: "ms.topic", append: "helloWorld"}]
 
         const case1Results = [
             { property: `title`, value: `1Use web app - Personalizer` },
@@ -139,7 +164,7 @@ describe('markdown', () => {
             { property: 'ms.author', value: `2diberry` }
         ]
 
-        const case2Options = [{ type: "append", field: "ms.topic", append: "helloWorld", delimiter: "," }]
+        const case2Options = [{ type: "append", field: "ms.topic", append: "helloWorld"}]
 
         const case2Results = [
             { property: `title`, value: `2Use web app - Personalizer` },
@@ -150,15 +175,15 @@ describe('markdown', () => {
         ]
 
         const trueCases = [
-            [case1Data, case1Options, case1Results],
-            [case2Data, case2Options, case2Results]
+            [case1Data, globalOptions, case1Options, case1Results],
+            [case2Data, globalOptions,case2Options, case2Results]
         ]
 
         describe('true cases', () => {
             test.each(trueCases)(
                 'should return true for inputs',
-                async (data: any, options: any, result) => {
-                    const testCaseResult = await alterMetadata(data, options)
+                async (data: any, globalOptions:any, options: any, result) => {
+                    const testCaseResult = await alterMetadata(data, globalOptions, options)
                     expect(JSON.stringify(testCaseResult)).toEqual(JSON.stringify(result))
                 })
         })
@@ -208,7 +233,7 @@ describe('markdown', () => {
 
     describe('replaceExistingMetadata ', () => {
 
-            const oldContent1 = `---
+        const oldContent1 = `---
 title: Use web app - Personalizer
 description: Customize a C# .NET web app with a Personalizer loop to provide the correct content to a user based on actions (with features) and context features.
 ms.topic: tutorial
@@ -229,7 +254,7 @@ Customize a C# .NET web app with a Personalizer loop to provide the correct cont
 > * Call Rank and Reward APIs
 > * Display top action, designated as _rewardActionId_`
 
-            const alteredMetadata1 = `title: Use web app - Personalizer
+        const alteredMetadata1 = `title: Use web app - Personalizer
 description: Customize a C# .NET web app with a Personalizer loop to provide the correct content to a user based on actions (with features) and context features.
 ms.topic: tutorial, helloWorld
 ms.custom: hello
@@ -237,7 +262,7 @@ ms.date: 06/10/2020
 ms.author: diberry
 `
 
-            const newContent1 = `---
+        const newContent1 = `---
 title: Use web app - Personalizer
 description: Customize a C# .NET web app with a Personalizer loop to provide the correct content to a user based on actions (with features) and context features.
 ms.topic: tutorial, helloWorld
@@ -258,29 +283,29 @@ Customize a C# .NET web app with a Personalizer loop to provide the correct cont
 > * Call Rank and Reward APIs
 > * Display top action, designated as _rewardActionId_`
 
-            const surroundingDelimiter1 = "---\n"
-            
-            const oldContent2 = `-\nms.topic: tutorial\nms.custom: hello\n-\n# Tutorial: Add Personalizer to a .NET web app\n\n> * Set up Personalizer key and endpoint`
-            
-            const alteredMetadata2 = `ms.topic: AAAtutorialXXX\nms.custom: BBBhelloXXX\n`
-            
-            const newContent2 = `-\nms.topic: AAAtutorialXXX\nms.custom: BBBhelloXXX\n-\n# Tutorial: Add Personalizer to a .NET web app\n\n> * Set up Personalizer key and endpoint`
-            
-            const surroundingDelimiter2 = "-\n"            
-            
+        const surroundingDelimiter1 = "---\n"
 
-            const trueCases = [
-                //[oldContent1, alteredMetadata1, surroundingDelimiter1, newContent1],
-                [oldContent2, alteredMetadata2, surroundingDelimiter2, newContent2],
-            ]
+        const oldContent2 = `-\nms.topic: tutorial\nms.custom: hello\n-\n# Tutorial: Add Personalizer to a .NET web app\n\n> * Set up Personalizer key and endpoint`
 
-            test.each(trueCases)(
-                'should return true for inputs: %s',
-                async (oldContent, alteredMetadata, surroundingDelimiter, newContent) => {
+        const alteredMetadata2 = `ms.topic: AAAtutorialXXX\nms.custom: BBBhelloXXX\n`
 
-                    const returnedNewContent = replaceExistingMetadata(oldContent, alteredMetadata, surroundingDelimiter)
-                    expect(returnedNewContent.trim()).toEqual(newContent.trim())
-                })
+        const newContent2 = `-\nms.topic: AAAtutorialXXX\nms.custom: BBBhelloXXX\n-\n# Tutorial: Add Personalizer to a .NET web app\n\n> * Set up Personalizer key and endpoint`
+
+        const surroundingDelimiter2 = "-\n"
+
+
+        const trueCases = [
+            //[oldContent1, alteredMetadata1, surroundingDelimiter1, newContent1],
+            [oldContent2, alteredMetadata2, surroundingDelimiter2, newContent2],
+        ]
+
+        test.each(trueCases)(
+            'should return true for inputs: %s',
+            async (oldContent, alteredMetadata, surroundingDelimiter, newContent) => {
+
+                const returnedNewContent = replaceExistingMetadata(oldContent, alteredMetadata, surroundingDelimiter)
+                expect(returnedNewContent.trim()).toEqual(newContent.trim())
+            })
 
     })
 

@@ -7,7 +7,7 @@ import Path, { delimiter } from 'path'
 // find specific dictionary entry, modify values
 // add specific dictionary entry with value
 
-export const alterListOfMarkdownFiles = async (pathToRootOfRepo: any, listOfRelativeFiles: any, options: any) => {
+export const alterListOfMarkdownFiles = async (pathToRootOfRepo: any, listOfRelativeFiles: any, globalOptions:any, options: any) => {
 
     let statusArray: any = [];
 
@@ -33,7 +33,7 @@ export const alterListOfMarkdownFiles = async (pathToRootOfRepo: any, listOfRela
 
             //console.log(`loop status array - ${JSON.stringify(statusArray)}`)
         } else {
-            const status = await alterFile(fullPathToFile, options)
+            const status = await alterFile(fullPathToFile, globalOptions, options)
             statusArray.push(status)
         }
 
@@ -69,11 +69,11 @@ export const myPath = async () => {
 
 }
 */
-export const alterFile = async (fileWithAbsolutePath: string, options: any) => {
+export const alterFile = async (fileWithAbsolutePath: string, globalOptions:any, modifications: any) => {
 
     try {
 
-        if (!fileWithAbsolutePath || !options) return;
+        if (!fileWithAbsolutePath || !modifications || !globalOptions || !globalOptions || !globalOptions.interValuedelimiter || !globalOptions.propertyDelimiter || !globalOptions.endOfItemDelimiter || !globalOptions.surroundingDelimiter) return;
 
         const fileContent = await fs.readFile(fileWithAbsolutePath, { encoding: "utf-8" })
 
@@ -82,22 +82,30 @@ export const alterFile = async (fileWithAbsolutePath: string, options: any) => {
         const metadata = getMetadataFromMarkdown(fileContent)
         const metadataDictionary = stringToList(metadata)
 
-        const alteredMetadataObjects = alterMetadata(metadataDictionary, options)
-
         // TBD - fix this by creating a top level options that is above metadata changes
-        const surroundingDelimiter = options[0].surroundingDelimiter
-
-        const alteredMetadataAsString = convertObjArrayToString(metadataDictionary, options.delimiter, options.endOfItemDelimiter)
+        const {surroundingDelimiter, endOfItemDelimiter, overwriteFile, newFileNamePostPend, propertyDelimiter}  = globalOptions
+     
+        const alteredMetadataObjects = alterMetadata(metadataDictionary, globalOptions, modifications)
+        
+        const alteredMetadataAsString = convertObjArrayToString(metadataDictionary, propertyDelimiter, endOfItemDelimiter)
 
         const newFileContent = replaceExistingMetadata(fileContent, alteredMetadataAsString, surroundingDelimiter)
 
-        if (options.overwriteFile) {
-            const writeFileResponse = await fs.writeFile(fileWithAbsolutePath, newFileContent)
+        let writeFileResponse;
+        
+        if (overwriteFile) {
+            await fs.writeFile(fileWithAbsolutePath, newFileContent)
+            
+            return { status: "success", file: fileWithAbsolutePath}
         } else {
-            throw Error("Create new file is not enabled")
+            const newFileName = `${fileWithAbsolutePath}${newFileNamePostPend || `.new.md`}`
+            
+            writeFileResponse = await fs.writeFile(newFileName, newFileContent)
+            
+            return { status: "success", file: newFileName}
         }
 
-        return { status: "success", file: fileWithAbsolutePath }
+
     } catch (err) {
         return { status: "fail", file: fileWithAbsolutePath, err }
     }
@@ -138,48 +146,66 @@ export const findDelimiterStartPosition = (sourceStr: string, delimiter: string)
 // rip out metadata
 export const replaceExistingMetadata = (fileContent: string, alteredMetadata: String, surroundingDelimiter: any): string => {
 
-    const posAllDelimiters = findDelimiterStartPosition(fileContent, surroundingDelimiter)
+    try{
+        const posAllDelimiters = findDelimiterStartPosition(fileContent, surroundingDelimiter)
     
-    if(!posAllDelimiters || posAllDelimiters.length<2) return fileContent;
+        if(!posAllDelimiters || posAllDelimiters.length<2) return fileContent;
+        
+        // find delimiter in existing content
+        const firstMetadataDelimiterLocationBeginsAt = posAllDelimiters[0] - surroundingDelimiter.length;
+        const secondMetadataDelimiterLocationEndsAt = posAllDelimiters[1];
     
-    // find delimiter in existing content
-    const firstMetadataDelimiterLocationBeginsAt = posAllDelimiters[0] - surroundingDelimiter.length;
-    const secondMetadataDelimiterLocationEndsAt = posAllDelimiters[1];
+        const contentBeforeFirstDelimiter = fileContent.substring(0,firstMetadataDelimiterLocationBeginsAt)
+        const contentAfterSecondDelimiter = 
+        fileContent.substring(secondMetadataDelimiterLocationEndsAt,fileContent.length)
+    
+        const newContent = `${contentBeforeFirstDelimiter}${surroundingDelimiter}${alteredMetadata}${surroundingDelimiter}${contentAfterSecondDelimiter}`;
+        
+        return newContent;
+    } catch (err){
+        throw err
+    }
 
-    const contentBeforeFirstDelimiter = fileContent.substring(0,firstMetadataDelimiterLocationBeginsAt)
-    const contentAfterSecondDelimiter = 
-    fileContent.substring(secondMetadataDelimiterLocationEndsAt,fileContent.length)
-
-    const newContent = `${contentBeforeFirstDelimiter}${surroundingDelimiter}${alteredMetadata}${surroundingDelimiter}${contentAfterSecondDelimiter}`;
-    
-    return newContent;
 }
 
-export const alterMetadata = (arrayMetadataObjects: any, options: any):[] => {
+export const alterMetadata = (arrayMetadataObjects: any, globalOptions: any, options: any):[] => {
+    
+    if(!arrayMetadataObjects || !options || options.length===0 || !globalOptions || !globalOptions.interValuedelimiter ) return arrayMetadataObjects;
 
     options.map((singleAlterationRequest: any) => {
-        switch (singleAlterationRequest.type.toLowerCase()) {
+        
+        const {type, field, append} = singleAlterationRequest;
+        const {interValuedelimiter} = globalOptions
+        
+        if(!type || !field || !append ) return;
+        
+        switch (type.toLowerCase()) {
             case "append":
 
-                // find metadata field start position
-                const itemIndex = arrayMetadataObjects.findIndex((x: any) => x.property == singleAlterationRequest.field);
+                // find metadata property field start position
+                const itemIndex = arrayMetadataObjects.findIndex((x: any) => x.property == field);
 
-                // append new value
+                // append new metadata property to list of properties
                 if (itemIndex === -1) {
-                    arrayMetadataObjects.push({ property: singleAlterationRequest.field, value: singleAlterationRequest.append })
+                    arrayMetadataObjects.push({ 
+                        property: field, 
+                        value: append 
+                    })
 
                 } else {
 
+                    // alter existing metadata property 
+                    
                     if ((typeof arrayMetadataObjects[itemIndex].value).toLowerCase() === 'array') {
                         // parse array and append to end
 
                         // TBD - fix - this is wrong
-                        const newValue = `${arrayMetadataObjects[itemIndex].value}${singleAlterationRequest.delimiter} ${singleAlterationRequest.append}`
+                        const newValue = `${arrayMetadataObjects[itemIndex].value}${interValuedelimiter} ${append}`
 
                         arrayMetadataObjects[itemIndex].value = newValue
                     } else {
                         // not an array - just change existing value
-                        const newValue = `${arrayMetadataObjects[itemIndex].value}${singleAlterationRequest.delimiter} ${singleAlterationRequest.append}`
+                        const newValue = `${arrayMetadataObjects[itemIndex].value}${interValuedelimiter} ${append}`
 
                         arrayMetadataObjects[itemIndex].value = newValue
                     }
